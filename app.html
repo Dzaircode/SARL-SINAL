@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f3864">
+  <title>Inventaire — SARL SINAL</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- One library only: xlsx-js-style reads Excel files and also writes the header colors. -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+</head>
+<body>
+  <main id="app" class="app-shell" hidden>
+    <header class="toolbar">
+      <div class="brand"><strong>SARL SINAL</strong></div>
+      <div class="toolbar-actions">
+        <label class="search-box"><span>Rechercher</span><input id="search" type="search" placeholder="Rechercher dans la feuille"></label>
+        <label class="filter-box">État <select id="state-filter"><option value="">Tous</option></select></label>
+        <label class="filter-box">Service <select id="service-filter"><option value="">Tous</option></select></label>
+        <button id="add-button" type="button">+ Ajouter</button>
+        <button id="import-button" type="button">Importer Excel</button>
+        <button id="export-button" type="button">Exporter Excel</button>
+        <button id="print-button" type="button">Imprimer</button>
+        <button id="logout-button" class="quiet-button" type="button">Déconnexion</button>
+        <input id="import-file" type="file" accept=".xlsx,.xls" hidden>
+      </div>
+      <p id="app-message" class="message" role="status"></p>
+    </header>
+
+    <section id="sheet-area" class="sheet-area" aria-live="polite"></section>
+    <nav id="sheet-tabs" class="sheet-tabs" aria-label="Feuilles de calcul"></nav>
+  </main>
+
+  <dialog id="record-dialog">
+    <form id="record-form" method="dialog">
+      <div class="dialog-heading">
+        <h2 id="dialog-title">Ajouter une ligne</h2>
+        <button id="close-dialog" class="icon-button" type="button" aria-label="Fermer">×</button>
+      </div>
+      <div id="form-fields" class="form-fields"></div>
+      <p id="form-error" class="message" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" id="cancel-dialog" class="quiet-button">Annuler</button>
+        <button type="submit">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

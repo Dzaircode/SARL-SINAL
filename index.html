@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f3864">
+  <title>Connexion — Inventaire SARL SINAL</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section id="login-screen" class="login-screen">
+    <form id="login-form" class="login-card">
+      <h1>Inventaire informatique</h1>
+      <p>SARL SINAL</p>
+      <label for="email">Adresse e-mail</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="password">Mot de passe</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button id="login-button" type="submit">Se connecter</button>
+      <p id="login-message" class="message" role="alert"></p>
+    </form>
+  </section>
+  <script type="module" src="login.js"></script>
+</body>
+</html>
