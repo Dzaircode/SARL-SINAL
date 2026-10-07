@@ -1,6 +1,6 @@
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
-  onValue, push, ref, remove, serverTimestamp, update
+  get, onValue, push, ref, remove, serverTimestamp, update
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 import { auth, db } from "./firebase.js";
 
@@ -24,15 +24,15 @@ const COMPUTER_COLUMNS = [
 const DEFINITIONS = [
   {
     name: "Unités Centrales", aliases: ["Unites Centrales"],
-    collection: "unites_centrales", kind: "computer", columns: COMPUTER_COLUMNS
+    collection: "unites_centrales", kind: "computer", icon: "computer", columns: COMPUTER_COLUMNS
   },
   {
     name: "Laptops", aliases: [],
-    collection: "laptops", kind: "computer", columns: COMPUTER_COLUMNS
+    collection: "laptops", kind: "computer", icon: "laptop_mac", columns: COMPUTER_COLUMNS
   },
   {
     name: "Imprimantes", aliases: [],
-    collection: "imprimantes", kind: "printer",
+    collection: "imprimantes", kind: "printer", icon: "print",
     columns: [
       ["N° Equipement", 125], ["Type", 140], ["Marque", 130], [SERIAL_FIELD, 220],
       ["État", 110], ["Service", 145], ["Remarque", 225], [HISTORY_FIELD, 285],
@@ -41,7 +41,7 @@ const DEFINITIONS = [
   },
   {
     name: "Historique", aliases: [],
-    collection: "historique", kind: "history",
+    collection: "historique", kind: "history", icon: "history",
     columns: [
       ["N° Série", 210], ["N° PC", 105], ["Type", 135], ["Marque", 130],
       ["Service", 145], ["Utilisateur", 190], ["Statut", 205], ["Remarque", 200]
@@ -159,21 +159,13 @@ function sortRecords(records, sheet, sort) {
   });
 }
 
-function importIdentity(sheet, record) {
-  if (sheet.kind === "history") {
-    return sheet.columns.map(([field]) => norm(record[field])).join("|");
-  }
-  return `${norm(record[serialField(sheet)])}|${norm(record[pcField(sheet)])}`;
-}
-
 // Sheet names in the real file differ slightly ("Unites Centrales", "Historique ").
-function findWorksheet(workbook, sheet) {
-  const wanted = [sheet.name, ...sheet.aliases].map(norm);
-  const name = workbook.SheetNames.find(candidate => wanted.includes(norm(candidate)));
-  return name ? workbook.Sheets[name] : null;
+function definitionForWorksheet(name) {
+  return DEFINITIONS.find(sheet =>
+    [sheet.name, ...sheet.aliases].some(alias => norm(alias) === norm(name))
+  ) || null;
 }
 
-// Finds the header row by itself (row 4, or row 5 for Historique) and ignores header typos like "N° Equipement ".
 function parseWorksheet(worksheet, sheet, lib) {
   const grid = lib.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: false });
   const wanted = new Map(sheet.columns.map(([field]) => [norm(field), field]));
@@ -182,16 +174,35 @@ function parseWorksheet(worksheet, sheet, lib) {
     const score = row.filter(cell => wanted.has(norm(cell))).length;
     if (score > best.score) best = { score, index };
   });
-  if (best.score < 3) return [];
+  if (best.score < 1) {
+    const skippedRows = grid.filter(row => row.some(value => text(value))).length;
+    return { records: [], skippedRows, error: "Ligne d’en-têtes introuvable." };
+  }
   const headers = grid[best.index].map(cell => wanted.get(norm(cell)) || null);
-  return grid.slice(best.index + 1).map(row => {
+  let skippedRows = 0;
+  const records = [];
+  grid.slice(best.index + 1).forEach(row => {
+    if (!row.some(value => text(value))) {
+      skippedRows += 1;
+      return;
+    }
     const record = {};
     sheet.columns.forEach(([field]) => { if (field !== ALERT_FIELD) record[field] = ""; });
     headers.forEach((field, index) => {
       if (field && field !== ALERT_FIELD) record[field] = text(row[index]);
     });
-    return record;
-  }).filter(record => Object.values(record).some(Boolean));
+    records.push(record);
+  });
+  return { records, skippedRows, error: "" };
+}
+
+function importDocumentId(sheet, record) {
+  return encodeURIComponent(text(record[importIdentifierField(sheet)])).replace(/\./g, "%2E");
+}
+
+function importIdentifierField(sheet) {
+  return sheet.columns.find(([field]) => norm(field) === norm("N° Equipement"))?.[0]
+    || serialField(sheet);
 }
 
 function buildWorkbook(lib, recordsByCollection, updated = new Date()) {
@@ -273,12 +284,12 @@ function el(tag, className, content) {
   return node;
 }
 
-function notify(message, isError = false) {
+function notify(message, isError = false, duration = 6000) {
   appMessage.textContent = message;
   appMessage.style.color = isError ? "#9c2c18" : "#27623b";
   if (message) window.setTimeout(() => {
     if (appMessage.textContent === message) appMessage.textContent = "";
-  }, 6000);
+  }, duration);
 }
 
 function friendlyError(error) {
@@ -330,6 +341,20 @@ function startDataListeners() {
     }, error => notify(`Lecture de « ${sheet.name} » impossible : ${friendlyError(error)}`, true));
     state.listeners.push(unsubscribe);
   }
+}
+
+async function refreshAllTables() {
+  const snapshots = await Promise.all(
+    DEFINITIONS.map(sheet => get(ref(db, sheet.collection)))
+  );
+  snapshots.forEach((snapshot, index) => {
+    const sheet = DEFINITIONS[index];
+    const values = snapshot.val() || {};
+    state.records[sheet.collection] = Object.entries(values).map(([id, value]) => ({
+      id, ...decodeRecord(value)
+    }));
+  });
+  scheduleRender();
 }
 
 function documentDate() {
@@ -391,7 +416,11 @@ function restoreFocus(saved) {
 function renderTabs() {
   tabs.replaceChildren();
   DEFINITIONS.forEach((sheet, index) => {
-    const button = el("button", `sheet-tab${index === state.activeIndex ? " active" : ""}`, sheet.name);
+    const button = el("button", `sheet-tab${index === state.activeIndex ? " active" : ""}`);
+    const icon = el("span", "sheet-tab-icon", sheet.icon);
+    icon.setAttribute("aria-hidden", "true");
+    const label = el("span", "sheet-tab-label", sheet.name);
+    button.append(icon, label);
     button.type = "button";
     button.addEventListener("click", () => {
       state.activeIndex = index;
@@ -466,9 +495,133 @@ function appendDataCell(row, sheet, record, rowIndex, colIndex, serialMap) {
   cell.tabIndex = 0;
   if (rowIndex === 0) cell.classList.add("first-data-cell");
   if (isAlert && value) cell.classList.add("alert-cell");
-  if (!isAlert) cell.addEventListener("click", () => beginEdit(cell));
+  const isHistorySerial = sheet.kind === "history" && field === "N° Série";
+  if (isHistorySerial) {
+    let roadmapClickTimer;
+    cell.classList.add("roadmap-trigger");
+    cell.title = "Voir le parcours";
+    cell.addEventListener("click", () => {
+      window.clearTimeout(roadmapClickTimer);
+      roadmapClickTimer = window.setTimeout(() => openRoadmap(record), 250);
+    });
+    cell.addEventListener("dblclick", () => {
+      window.clearTimeout(roadmapClickTimer);
+      beginEdit(cell);
+    });
+  } else if (!isAlert) {
+    cell.addEventListener("click", () => beginEdit(cell));
+  }
   cell.addEventListener("keydown", event => handleCellKeydown(event, cell));
   row.append(cell);
+}
+
+function roadmapSteps(serial) {
+  const history = state.records.historique
+    .filter(record => norm(record["N° Série"]) === norm(serial))
+    .sort((a, b) => {
+      const aTime = Number(a.updatedAt) || 0;
+      const bTime = Number(b.updatedAt) || 0;
+      if (aTime && bTime) return aTime - bTime;
+      if (aTime) return -1;
+      if (bTime) return 1;
+      const statusOrder = record => norm(record.Statut) === norm(STATUS_PAST) ? 0
+        : norm(record.Statut) === norm(STATUS_CURRENT) ? 1 : 0.5;
+      return statusOrder(a) - statusOrder(b);
+    });
+  const equipmentRecords = DEFINITIONS
+    .filter(sheet => sheet.kind !== "history")
+    .flatMap(sheet => state.records[sheet.collection])
+    .filter(record => norm(record[SERIAL_FIELD]) === norm(serial));
+  const source = history.length ? history : equipmentRecords;
+  const steps = [];
+  if (history.length) {
+    source.forEach(record => {
+      const name = text(record.Utilisateur) || text(record.Service);
+      if (!name) return;
+      const time = Number(record.updatedAt);
+      const step = {
+        name,
+        date: Number.isFinite(time) && time > 0 ? new Date(time) : null,
+        remark: text(record.Remarque)
+      };
+      const previous = steps[steps.length - 1];
+      if (previous && norm(previous.name) === norm(name)) {
+        if (step.date) previous.date = step.date;
+        if (step.remark) previous.remark = step.remark;
+      } else {
+        steps.push(step);
+      }
+    });
+    return steps;
+  }
+
+  const equipment = source.find(record => text(record[HISTORY_FIELD]));
+  if (!equipment) return steps;
+  text(equipment[HISTORY_FIELD]).split("→").map(text).filter(Boolean).forEach(part => {
+    const name = part.replace(/^\(actuel\)\s*/i, "").trim();
+    if (!name) return;
+    const previous = steps[steps.length - 1];
+    if (!previous || norm(previous.name) !== norm(name)) {
+      steps.push({
+        name,
+        date: Number(equipment.updatedAt) > 0 ? new Date(Number(equipment.updatedAt)) : null,
+        remark: text(equipment.Remarque)
+      });
+    }
+  });
+  return steps;
+}
+
+function openRoadmap(record) {
+  const serial = text(record["N° Série"]);
+  if (!serial || IGNORED_SERIALS.has(norm(serial))) return;
+  const equipmentSheet = DEFINITIONS.find(sheet => sheet.kind !== "history" &&
+    state.records[sheet.collection].some(item =>
+      norm(item[SERIAL_FIELD]) === norm(serial) && text(item[HISTORY_FIELD])
+    ));
+  const equipment = equipmentSheet && state.records[equipmentSheet.collection].find(item =>
+    norm(item[SERIAL_FIELD]) === norm(serial) && text(item[HISTORY_FIELD])
+  );
+  const steps = roadmapSteps(serial);
+  const dialog = el("dialog", "roadmap-dialog");
+  const heading = el("div", "roadmap-heading");
+  const title = el("h2", "", `Parcours — ${serial}`);
+  const close = el("button", "roadmap-close", "×");
+  close.type = "button";
+  close.setAttribute("aria-label", "Fermer");
+  close.addEventListener("click", () => dialog.close());
+  heading.append(title, close);
+
+  const details = el("dl", "roadmap-details");
+  const values = [
+    ["N° Série", serial],
+    ["N° PC", text(record["N° PC"]) || text(equipment && equipmentSheet ? equipment[pcField(equipmentSheet)] : "")],
+    ["Type", text(record.Type) || text(equipment?.Type)],
+    ["Marque", text(record.Marque) || text(equipment?.Marque)],
+    ["Étapes", String(steps.length)]
+  ];
+  values.forEach(([label, value]) => {
+    const group = el("div", "roadmap-detail");
+    group.append(el("dt", "", label), el("dd", "", value || "—"));
+    details.append(group);
+  });
+
+  const chain = el("ol", "roadmap-chain");
+  steps.forEach((step, index) => {
+    const isCurrent = index === steps.length - 1;
+    const item = el("li", `roadmap-step${isCurrent ? " current" : ""}`);
+    const name = el("strong", "roadmap-step-name", isCurrent ? `Now: ${step.name}` : step.name);
+    const date = el("span", "roadmap-step-date", step.date ? dateText(step.date) : "Date inconnue");
+    const remark = el("span", "roadmap-step-remark", step.remark || "Aucune remarque");
+    item.append(name, date, remark);
+    chain.append(item);
+  });
+  const content = el("div", "roadmap-content");
+  content.append(details, chain);
+  dialog.append(heading, content);
+  dialog.addEventListener("close", () => dialog.remove(), { once: true });
+  document.body.append(dialog);
+  dialog.showModal();
 }
 
 function render() {
@@ -640,6 +793,13 @@ function handleCellKeydown(event, cell) {
       finishEdit(cell, true);
       if (!moveFocus(cell, 0, event.shiftKey ? -1 : 1, true)) cell.focus();
     }
+    return;
+  }
+  const sheet = DEFINITIONS.find(item => item.collection === cell.dataset.collection);
+  if (sheet?.kind === "history" && cell.dataset.field === "N° Série" && event.key === "Enter") {
+    event.preventDefault();
+    const record = state.records[sheet.collection].find(item => item.id === cell.dataset.docId);
+    if (record) openRoadmap(record);
     return;
   }
   if (event.key === "F2" || event.key === "Enter") {
@@ -847,33 +1007,113 @@ sheetArea.addEventListener("paste", event => {
 async function importWorkbook(file) {
   try {
     if (!window.XLSX) throw new Error("La librairie Excel n’est pas chargée.");
+    await refreshAllTables();
     const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-    const writes = [];
-    const summary = [];
-    for (const sheet of DEFINITIONS) {
-      const worksheet = findWorksheet(workbook, sheet);
-      if (!worksheet) continue;
-      const known = new Set(state.records[sheet.collection].map(record => importIdentity(sheet, record)));
-      let added = 0;
-      for (const record of parseWorksheet(worksheet, sheet, XLSX)) {
-        if (sheet.kind !== "history" && !record[serialField(sheet)] && !record[pcField(sheet)]) continue;
-        const key = importIdentity(sheet, record);
-        if (known.has(key)) continue;
-        known.add(key);
-        const id = push(ref(db, sheet.collection)).key;
-        writes.push({
-          path: `${sheet.collection}/${id}`,
-          data: encodeRecord({ ...record, updatedAt: serverTimestamp() })
-        });
-        added += 1;
+    const stats = new Map(DEFINITIONS.map(sheet => [
+      sheet.collection, { sheet, imported: 0, skipped: 0, errors: [] }
+    ]));
+    const knownBySheet = new Map(DEFINITIONS.map(sheet => {
+      const known = new Map();
+      if (sheet.kind !== "history") {
+        const identifierField = importIdentifierField(sheet);
+        for (const record of state.records[sheet.collection]) {
+          const identifier = norm(record[identifierField]);
+          if (identifier && !known.has(identifier)) known.set(identifier, record);
+        }
       }
-      summary.push(`${sheet.name} : ${added}`);
+      return [sheet.collection, known];
+    }));
+    const writesByPath = new Map();
+
+    for (const worksheetName of workbook.SheetNames) {
+      const sheet = definitionForWorksheet(worksheetName);
+      if (!sheet) continue;
+      const result = stats.get(sheet.collection);
+      try {
+        const parsed = parseWorksheet(workbook.Sheets[worksheetName], sheet, XLSX);
+        result.skipped += parsed.skippedRows;
+        if (parsed.error) {
+          result.errors.push(`${worksheetName}: ${parsed.error}`);
+          continue;
+        }
+        const known = knownBySheet.get(sheet.collection);
+        for (const record of parsed.records) {
+          if (!Object.values(record).some(Boolean)) {
+            result.skipped += 1;
+            continue;
+          }
+          let id;
+          let existing = null;
+          if (sheet.kind === "history") {
+            id = push(ref(db, sheet.collection)).key;
+          } else {
+            const identifierField = importIdentifierField(sheet);
+            const identifier = norm(record[identifierField]);
+            if (!identifier) {
+              result.skipped += 1;
+              continue;
+            }
+            existing = known.get(identifier) || null;
+            id = existing?.id || importDocumentId(sheet, record);
+          }
+
+          const path = `${sheet.collection}/${id}`;
+          const previous = writesByPath.get(path);
+          const previousRecord = previous?.record || existing || {};
+          const merged = { ...previousRecord, ...record };
+          delete merged.id;
+          writesByPath.set(path, {
+            path,
+            sheet,
+            record: merged,
+            rows: (previous?.rows || 0) + 1,
+            data: encodeRecord({ ...merged, updatedAt: serverTimestamp() })
+          });
+          result.imported += 1;
+          if (sheet.kind !== "history") {
+            const identifierField = importIdentifierField(sheet);
+            known.set(norm(record[identifierField]), { id, ...merged });
+          }
+        }
+      } catch (error) {
+        result.errors.push(`${worksheetName}: ${friendlyError(error)}`);
+      }
     }
-    for (let index = 0; index < writes.length; index += 400) {
-      const updates = Object.fromEntries(writes.slice(index, index + 400).map(({ path, data }) => [path, data]));
-      await update(ref(db), updates);
+
+    const writes = [...writesByPath.values()];
+    for (let index = 0; index < writes.length; index += 500) {
+      const batch = writes.slice(index, index + 500);
+      const updates = Object.fromEntries(batch.map(({ path, data }) => [path, data]));
+      try {
+        await update(ref(db), updates);
+      } catch (error) {
+        const failedBySheet = new Map();
+        for (const write of batch) {
+          const result = stats.get(write.sheet.collection);
+          result.imported -= write.rows;
+          failedBySheet.set(write.sheet.collection, (failedBySheet.get(write.sheet.collection) || 0) + write.rows);
+        }
+        for (const [collection, rows] of failedBySheet) {
+          stats.get(collection).errors.push(`${rows} ligne(s) non enregistrée(s): ${friendlyError(error)}`);
+        }
+      }
     }
-    notify(writes.length ? `${writes.length} ligne(s) importée(s) — ${summary.join(" | ")}` : "Aucune nouvelle ligne à importer.");
+
+    try {
+      await refreshAllTables();
+    } catch (error) {
+      for (const result of stats.values()) result.errors.push(`Rafraîchissement impossible: ${friendlyError(error)}`);
+    }
+
+    const summary = [...stats.values()].map(({ sheet, imported, skipped }) =>
+      `${sheet.name}: ${imported} importée(s), ${skipped} ignorée(s)`
+    );
+    const errors = [...stats.values()].flatMap(({ sheet, errors: sheetErrors }) =>
+      sheetErrors.map(error => `${sheet.name}: ${error}`)
+    );
+    summary.push(`Total ignoré: ${[...stats.values()].reduce((sum, result) => sum + result.skipped, 0)}`);
+    summary.push(errors.length ? `Erreurs (${errors.length}): ${errors.join(" | ")}` : "Erreurs: 0");
+    notify(summary.join("\n"), errors.length > 0, 20000);
   } catch (error) {
     notify(`Import impossible : ${friendlyError(error)}`, true);
   }

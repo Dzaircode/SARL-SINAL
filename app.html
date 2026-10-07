@@ -6,13 +6,14 @@
   <meta name="theme-color" content="#1f3864">
   <title>Inventaire — SARL SINAL</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL,wght@0..1,400">
   <!-- One library only: xlsx-js-style reads Excel files and also writes the header colors. -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 </head>
 <body>
   <main id="app" class="app-shell" hidden>
     <header class="toolbar">
-      <div class="brand"><strong>SARL SINAL</strong></div>
+   
       <div class="toolbar-actions">
         <label class="search-box"><span>Rechercher</span><input id="search" type="search" placeholder="Rechercher dans la feuille"></label>
         <label class="filter-box">État <select id="state-filter"><option value="">Tous</option></select></label>
@@ -28,7 +29,12 @@
     </header>
 
     <section id="sheet-area" class="sheet-area" aria-live="polite"></section>
-    <nav id="sheet-tabs" class="sheet-tabs" aria-label="Feuilles de calcul"></nav>
+    <nav id="sheet-tabs" class="sheet-tabs" aria-label="Feuilles de calcul">
+      <div class="sidebar-brand">
+        <img src="assets/images/logo.png" alt="" class="sidebar-brand-logo">
+        <strong>SARL SINAL</strong>
+      </div>
+    </nav>
   </main>
 
   <dialog id="record-dialog">

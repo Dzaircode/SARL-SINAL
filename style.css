@@ -167,14 +167,32 @@ body {
   scrollbar-width: none;
 }
 
-.sheet-tabs::before {
-  content: "SARL SINAL";
-  display: block;
-  margin: 0 8px 4px;
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+.sidebar-brand {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  margin: 0 4px 10px;
   color: #fff;
+}
+
+.sidebar-brand-logo {
+  display: block;
+  flex: none;
+  width: 112px;
+  height: 46px;
+  object-fit: cover;
+  object-position: center;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+}
+
+.sidebar-brand strong {
+  padding-left: 9px;
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .sheet-tabs::after {
@@ -199,20 +217,29 @@ body {
   transition: background 0.15s, color 0.15s;
 }
 
-/* little module icon (square with a dot) */
-.sheet-tab::before {
-  content: "";
+.sheet-tab-icon {
   flex: none;
+  display: grid;
+  place-items: center;
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background:
-    radial-gradient(circle at 50% 50%, currentColor 0 3px, transparent 3.5px),
-    rgba(255, 255, 255, 0.08);
-  transition: background 0.15s;
+  color: currentColor;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: "Material Symbols Outlined";
+  font-size: 20px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  font-feature-settings: "liga";
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  transition: color 0.15s, background 0.15s;
 }
 
 .sheet-tab:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+
+.sheet-tab:hover .sheet-tab-icon { background: rgba(255, 255, 255, 0.12); }
 
 .sheet-tab.active {
   color: #fff;
@@ -220,10 +247,9 @@ body {
   box-shadow: inset 3px 0 0 #4ade80;
 }
 
-.sheet-tab.active::before {
-  background:
-    radial-gradient(circle at 50% 50%, #0f2142 0 3px, transparent 3.5px),
-    #4ade80;
+.sheet-tab.active .sheet-tab-icon {
+  color: var(--navy);
+  background: #4ade80;
 }
 
 /* ----- Top bar ----- */
@@ -241,6 +267,25 @@ body {
 }
 
 .brand { display: none; }
+
+.brand-logo {
+  display: block;
+  flex: none;
+  width: 128px;
+  height: 46px;
+  object-fit: cover;
+  object-position: center;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+}
+
+.brand strong {
+  padding-left: 12px;
+  border-left: 1px solid rgba(16, 24, 40, 0.18);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
 
 .toolbar-actions {
   flex: 1 1 520px;
@@ -358,6 +403,9 @@ body {
   border-left: 4px solid var(--accent);
   border-radius: 10px;
   box-shadow: 0 16px 40px -10px rgba(16, 24, 40, 0.35);
+  white-space: pre-line;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
 }
 
 .message:empty { display: none; }
@@ -697,9 +745,12 @@ dialog#record-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-fi
 @media (max-width: 1100px) {
   :root { --side-w: 76px; }
   .sheet-tabs { align-items: center; padding: 18px 10px; }
-  .sheet-tabs::before { content: "S"; margin: 0 0 8px; font-size: 22px; }
-  .sheet-tab { justify-content: center; padding: 8px; font-size: 0; gap: 0; }
-  .sheet-tab::before { width: 36px; height: 36px; }
+  .sidebar-brand { justify-content: center; width: 50px; height: 50px; min-height: 0; margin: 0 0 8px; }
+  .sidebar-brand-logo { width: 48px; height: 48px; border-radius: 12px; }
+  .sidebar-brand strong { display: none; }
+  .sheet-tab { justify-content: center; padding: 8px; gap: 0; }
+  .sheet-tab-label { display: none; }
+  .sheet-tab-icon { width: 36px; height: 36px; font-size: 21px; }
   .sheet-tab.active { box-shadow: none; }
 }
 
@@ -707,29 +758,79 @@ dialog#record-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-fi
 
 @media (max-width: 760px) {
   .app-shell {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-areas: "top" "main" "tabs";
+    --rn-w: 36px;
   }
 
-  .toolbar { padding: 12px 14px 8px; gap: 8px; background: var(--navy); }
-  .brand { display: block; width: 100%; }
-  .brand strong { font-size: 17px; font-weight: 800; color: #fff; }
+  .toolbar { min-width: 0; padding: 8px 10px 6px; gap: 6px; background: var(--navy); }
+  .brand { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; }
+  .brand-logo {
+    display: block;
+    flex: none;
+    width: 106px;
+    height: 38px;
+    object-fit: cover;
+    object-position: center;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+  }
+  .brand strong {
+    border-left-color: rgba(255, 255, 255, 0.24);
+    color: #fff;
+  }
 
   .toolbar-actions {
-    flex-basis: 100%;
-    flex-wrap: nowrap;
+    position: relative;
+    flex: 1 1 100%;
+    min-width: 0;
+    display: grid;
+    align-items: center;
+    grid-template-columns: repeat(7, max-content);
+    grid-auto-flow: row;
     overflow-x: auto;
-    padding-bottom: 4px;
+    overflow-y: hidden;
+    padding: 0 0 8px;
+    gap: 8px;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
-  .search-box { flex: none; width: 210px; max-width: none; }
-  .filter-box { flex: none; color: #dbe5f5; }
+  .toolbar-actions::-webkit-scrollbar { display: none; }
+  .search-box {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    grid-column: 1 / -1;
+    width: calc(100vw - 20px);
+    max-width: none;
+  }
+  .filter-box { flex: 0 0 auto; color: #dbe5f5; }
   .filter-box select { max-width: 150px; }
+  .toolbar-actions button { flex: 0 0 auto; min-height: 40px; }
   .toolbar-actions #logout-button { margin-left: 0; color: #fecaca; }
   .toolbar-actions #logout-button:hover { background: rgba(255, 255, 255, 0.1); }
 
-  .sheet-area { margin: 12px 10px 10px; }
+  .sheet-area {
+    min-width: 0;
+    margin: 8px 8px 6px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  table.grid { font-size: 12.5px; }
+  .grid td, .grid th { padding: 8px 10px; }
+  .grid thead th { padding: 8px 10px; }
+  .grid .row-number { width: var(--rn-w); padding: 8px 0; }
+  .grid thead th.row-number { width: var(--rn-w); }
+  .grid .delete-cell { width: 40px; }
+  .delete-button { width: 36px; height: 36px; }
   .grid .title-row td { font-size: 17px; }
   .grid .sticky-text { left: 14px; }
   .grid thead th:nth-child(2) { left: auto; }
@@ -738,19 +839,70 @@ dialog#record-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-fi
   .sheet-tabs {
     flex-direction: row;
     align-items: stretch;
-    gap: 4px;
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-    overflow-x: auto;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
     overflow-y: hidden;
     background: var(--navy);
   }
-  .sheet-tabs::before, .sheet-tabs::after { display: none; }
-  .sheet-tab { width: auto; justify-content: flex-start; padding: 9px 14px; font-size: 13px; gap: 8px; white-space: nowrap; }
-  .sheet-tab::before { width: 22px; height: 22px; border-radius: 7px; }
-  .sheet-tab.active { box-shadow: none; }
+  .sidebar-brand, .sheet-tabs::after { display: none; }
+  .sheet-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    width: 25%;
+    padding: 4px 2px;
+    font-size: 11px;
+    line-height: 1.1;
+    text-align: center;
+    white-space: normal;
+  }
+  .sheet-tab-label { display: inline; }
+  .sheet-tab-icon { width: 22px; height: 22px; border-radius: 7px; font-size: 17px; }
+  .sheet-tab.active { color: #fff; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 2px 0 #4ade80; }
+  .sheet-tab.active .sheet-tab-icon { color: var(--navy); background: #4ade80; }
 
-  .form-fields { grid-template-columns: 1fr; padding: 18px; }
-  .toolbar .message { right: 10px; left: 10px; bottom: 76px; max-width: none; }
+  .toolbar .message {
+    right: 10px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    left: 10px;
+    width: auto;
+    max-width: none;
+    max-height: 50vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  dialog#record-dialog {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    height: 92dvh;
+    max-height: 92dvh;
+    margin: 0 auto;
+    border-radius: 18px 18px 0 0;
+  }
+  #record-form { height: 100%; max-height: 100%; min-height: 0; }
+  .dialog-heading { padding: 14px 18px; }
+  .form-fields { grid-template-columns: 1fr; min-height: 0; padding: 16px 18px; }
+  .form-fields input { font: 500 16px var(--grid); }
+  .dialog-actions {
+    position: sticky;
+    bottom: 0;
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+}
+
+@media (max-width: 400px) {
+  .toolbar { padding-right: 8px; padding-left: 8px; }
+  .search-box { width: calc(100vw - 16px); }
+  .sheet-area { margin-right: 6px; margin-left: 6px; }
+  .sheet-tabs { padding-right: 5px; padding-left: 5px; }
+  .sheet-tab { font-size: 10px; }
 }
 
 /* ---------- Print: current sheet only, landscape ---------- */
@@ -773,4 +925,60 @@ dialog#record-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-fi
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+}
+
+.roadmap-trigger { cursor: pointer !important; }
+.roadmap-trigger:hover { background: var(--blue-soft) !important; }
+
+dialog.roadmap-dialog {
+  width: min(900px, 94vw);
+  max-height: 90vh;
+  padding: 0;
+  color: var(--text);
+  background: var(--paper);
+  border: 0;
+  border-radius: 18px;
+  box-shadow: 0 40px 90px -20px rgba(15, 33, 66, 0.6);
+  overflow: hidden;
+}
+
+dialog.roadmap-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-filter: blur(3px); }
+.roadmap-heading { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+.roadmap-heading h2 { margin: 0; color: var(--ink); font-size: 18px; }
+.roadmap-close { width: 38px; height: 38px; padding: 0; color: var(--muted); background: transparent; border: 0; border-radius: 10px; font: 26px/1 var(--ui); cursor: pointer; }
+.roadmap-close:hover { color: var(--ink); background: var(--line-soft); }
+.roadmap-content { max-height: calc(90vh - 72px); overflow: auto; padding: 20px 22px 24px; }
+.roadmap-details { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 0 0 24px; }
+.roadmap-detail { min-width: 0; padding: 10px 12px; background: var(--head); border: 1px solid var(--line); border-radius: 10px; }
+.roadmap-detail dt { margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.roadmap-detail dd { margin: 0; color: var(--ink); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+.roadmap-chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.roadmap-step { position: relative; flex: 0 1 auto; min-width: 150px; max-width: 100%; display: flex; flex-direction: column; gap: 5px; padding: 13px 16px; color: var(--blue); background: var(--blue-soft); border-radius: 12px; overflow-wrap: anywhere; }
+.roadmap-step:not(:last-child)::after { content: "→"; position: absolute; top: 50%; right: -12px; z-index: 1; color: var(--muted); font-weight: 800; transform: translate(50%, -50%); }
+.roadmap-step.current { color: var(--accent-dark); background: var(--accent-soft); outline: 2px solid var(--accent); }
+.roadmap-step-name { color: var(--ink); font-size: 14px; }
+.roadmap-step-date { color: var(--muted); font-size: 12px; }
+.roadmap-step-remark { color: var(--text); font-size: 12px; }
+
+@media (max-width: 760px) {
+  dialog.roadmap-dialog {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    height: 92dvh;
+    max-height: 92dvh;
+    margin: 0 auto;
+    border-radius: 18px 18px 0 0;
+  }
+  .roadmap-heading { padding: 14px 18px; }
+  .roadmap-content { min-height: 0; max-height: calc(92dvh - 66px); overflow-y: auto; padding: 16px 18px calc(18px + env(safe-area-inset-bottom, 0px)); }
+  .roadmap-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
+  .roadmap-detail:first-child { grid-column: 1 / -1; }
+  .roadmap-chain { position: relative; display: flex; flex-direction: column; gap: 0; padding-left: 22px; }
+  .roadmap-chain::before { content: ""; position: absolute; top: 12px; bottom: 18px; left: 7px; width: 2px; background: var(--line); }
+  .roadmap-step { min-width: 0; padding: 9px 12px 14px; background: transparent; border-radius: 0; }
+  .roadmap-step::before { content: ""; position: absolute; top: 13px; left: -21px; width: 12px; height: 12px; background: var(--blue-soft); border: 2px solid var(--blue); border-radius: 50%; }
+  .roadmap-step:not(:last-child)::after { content: none; }
+  .roadmap-step.current { background: var(--accent-soft); outline: 0; border-radius: 10px; }
+  .roadmap-step.current::before { background: var(--accent); border-color: var(--accent); }
 }
