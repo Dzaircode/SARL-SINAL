@@ -5,15 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1f3864">
   <title>Inventaire — SARL SINAL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL,wght@0..1,400">
   <!-- One library only: xlsx-js-style reads Excel files and also writes the header colors. -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 </head>
 <body>
   <main id="app" class="app-shell" hidden>
     <header class="toolbar">
-   
+      <div class="brand">
+        <img src="assets/images/logo.png" alt="" class="brand-logo">
+        <strong>SARL SINAL</strong>
+      </div>
       <div class="toolbar-actions">
         <label class="search-box"><span>Rechercher</span><input id="search" type="search" placeholder="Rechercher dans la feuille"></label>
         <label class="filter-box">État <select id="state-filter"><option value="">Tous</option></select></label>

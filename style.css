@@ -2,8 +2,6 @@
    Dashboard theme. Same class names / ids as before: no change needed in index.html or app.js.
    Layout: dark sidebar (one entry per module = sheet tab) + top bar + card with the data table. */
 
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
-
 :root {
   --navy: #0f2142;
   --navy-2: #172d57;
@@ -72,10 +70,29 @@ body {
   width: min(410px, 100%);
   display: flex;
   flex-direction: column;
-  padding: 36px 32px 30px;
+  padding: 0 32px 30px;
   background: var(--paper);
   border-radius: 20px;
   box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.login-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: calc(100% + 64px);
+  margin-left: -32px;
+  margin-bottom: 32px;
+  padding: 30px 32px 26px;
+  background: linear-gradient(160deg, var(--navy-2), var(--navy) 70%);
+}
+
+.login-brand-logo {
+  height: 68px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.35));
 }
 
 .login-card h1 {
@@ -233,6 +250,7 @@ body {
   line-height: 1;
   font-feature-settings: "liga";
   -webkit-font-feature-settings: "liga";
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   -webkit-font-smoothing: antialiased;
   transition: color 0.15s, background 0.15s;
 }
@@ -483,17 +501,20 @@ table.grid {
   z-index: 5;
   height: 44px;
   padding: 10px 14px;
-  font-size: 12.5px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1.25;
   text-align: left;
-  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #475467;
   background: var(--head);
   border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 2px solid var(--line);
   vertical-align: middle;
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
   transition: color 0.15s, background 0.15s;
 }
 
@@ -531,7 +552,7 @@ table.grid {
 }
 
 /* body rows */
-.grid tbody td { background: var(--paper); color: var(--text); cursor: cell; transition: background 0.12s; }
+.grid tbody td { background: var(--paper); color: var(--text); cursor: default; transition: background 0.12s; }
 .grid tbody tr:hover td:not(.alert-cell) { background: var(--hover); }
 .grid tbody tr:hover td.row-number { color: var(--blue); }
 
@@ -575,32 +596,144 @@ table.grid {
 
 .grid td[data-field="Alerte à vérifier"] { cursor: default; }
 
-/* delete column */
+/* actions column (edit + delete) */
 .grid .delete-cell {
-  width: 48px;
-  padding: 6px 0;
+  width: 76px;
+  padding: 6px 4px;
   text-align: center;
   vertical-align: middle;
   background: var(--paper);
 }
 
+.grid tbody td.delete-cell {
+  display: table-cell;
+}
+
+.grid tbody td.delete-cell > * {
+  display: inline-flex;
+  vertical-align: middle;
+  margin: 0 1px;
+}
+
 .grid thead th.delete-cell { background: var(--head); }
 
+.edit-button,
 .delete-button {
   width: 30px;
   height: 30px;
   padding: 0;
-  font: 18px/1 var(--ui);
-  color: #c4cad4;
   background: transparent;
   border: 0;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.grid tbody tr:hover .delete-button { color: #98a2b3; }
+.edit-button {
+  color: #bdc5d0;
+  font-size: 0;
+}
+.edit-button .material-symbols-outlined {
+  font-size: 17px;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+
+.delete-button {
+  font: 18px/1 var(--ui);
+  color: #bdc5d0;
+}
+
+.grid tbody tr:hover .edit-button,
+.grid tbody tr:hover .delete-button { color: #6b7a8d; }
+.edit-button:hover { background: var(--accent-soft) !important; color: var(--accent-dark) !important; }
 .delete-button:hover { background: var(--danger-soft) !important; color: var(--danger) !important; }
+
+/* identifier cells — tabular figures for N° columns */
+.grid td.cell-id {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.025em;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* status badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--line-soft);
+  color: var(--muted);
+}
+/* Bon état / anything positive */
+.status-badge[data-status*="bon"] { background: var(--accent-soft); color: var(--accent-dark); }
+/* En panne */
+.status-badge[data-status*="panne"] { background: var(--danger-soft); color: var(--danger); }
+/* Réformé / hors service */
+.status-badge[data-status*="reforme"],
+.status-badge[data-status*="hors"] { background: #f0f2f5; color: #667085; }
+/* En réparation */
+.status-badge[data-status*="reparation"] { background: #fff7ed; color: #b45309; }
+/* Actuel (history Statut) */
+.status-badge[data-status*="actuel"] { background: var(--accent-soft); color: var(--accent-dark); }
+/* Ancien (history Statut) */
+.status-badge[data-status*="ancien"] { background: #f0f2f5; color: #667085; }
+
+/* loading / empty / no-results state rows */
+.grid .state-row td.state-cell {
+  text-align: center;
+  padding: 56px 24px 52px;
+  border-bottom: 0;
+  background: var(--paper);
+  cursor: default;
+}
+
+.state-spinner {
+  display: inline-block;
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: state-spin 0.75s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes state-spin { to { transform: rotate(360deg); } }
+
+.state-symbol {
+  display: block;
+  font-family: "Material Symbols Outlined";
+  font-size: 44px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  font-feature-settings: "liga";
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 48;
+  color: #d0d5dd;
+  margin-bottom: 14px;
+}
+
+.state-label {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #475467;
+}
+
+.state-hint {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  opacity: 0.8;
+}
 
 /* "add a row" line */
 .grid .blank-row td { background: var(--paper) !important; border-bottom: 0; }
@@ -695,6 +828,27 @@ dialog#record-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-fi
   background: #fff;
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(33, 115, 70, 0.14);
+}
+
+.form-fields input.invalid {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.12);
+}
+
+.form-fields input.invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 4px rgba(180, 35, 24, 0.18);
+}
+
+.required-mark {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.dialog-actions button[type="submit"]:disabled {
+  opacity: 0.55;
+  cursor: progress;
 }
 
 #record-form .message {
@@ -829,8 +983,8 @@ dialog#record-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-fi
   .grid thead th { padding: 8px 10px; }
   .grid .row-number { width: var(--rn-w); padding: 8px 0; }
   .grid thead th.row-number { width: var(--rn-w); }
-  .grid .delete-cell { width: 40px; }
-  .delete-button { width: 36px; height: 36px; }
+  .grid .delete-cell { width: 68px; }
+  .edit-button, .delete-button { width: 30px; height: 30px; }
   .grid .title-row td { font-size: 17px; }
   .grid .sticky-text { left: 14px; }
   .grid thead th:nth-child(2) { left: auto; }
@@ -910,7 +1064,7 @@ dialog#record-dialog::backdrop { background: rgba(15, 33, 66, 0.55); backdrop-fi
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   html, body { height: auto; background: #fff; }
-  .toolbar, .sheet-tabs, dialog, .blank-row, .delete-button { display: none !important; }
+  .toolbar, .sheet-tabs, dialog, .blank-row, .delete-button, .edit-button { display: none !important; }
   .app-shell { display: block; height: auto; }
   .sheet-area { overflow: visible; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
   table.grid { width: 100% !important; font-size: 8.5pt; }

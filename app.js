@@ -259,7 +259,10 @@ const state = {
   sort: null,
   renderQueued: false,
   renderDeferred: false,
-  pointerDown: false
+  pointerDown: false,
+  loadedCollections: new Set(),
+  editingRecord: null,
+  editingSheet: null
 };
 
 const appMessage = document.querySelector("#app-message");
@@ -331,14 +334,20 @@ function stopListeners() {
 
 function startDataListeners() {
   stopListeners();
+  state.loadedCollections = new Set();
   for (const sheet of DEFINITIONS) {
     const unsubscribe = onValue(ref(db, sheet.collection), snapshot => {
       const values = snapshot.val() || {};
       state.records[sheet.collection] = Object.entries(values).map(([id, value]) => ({
         id, ...decodeRecord(value)
       }));
+      state.loadedCollections.add(sheet.collection);
       scheduleRender();
-    }, error => notify(`Lecture de « ${sheet.name} » impossible : ${friendlyError(error)}`, true));
+    }, error => {
+      state.loadedCollections.add(sheet.collection);
+      notify(`Lecture de « ${sheet.name} » impossible : ${friendlyError(error)}`, true);
+      scheduleRender();
+    });
     state.listeners.push(unsubscribe);
   }
 }
@@ -486,7 +495,7 @@ function appendDataCell(row, sheet, record, rowIndex, colIndex, serialMap) {
   const field = sheet.columns[colIndex][0];
   const isAlert = field === ALERT_FIELD;
   const value = isAlert ? alertText(record, sheet, serialMap) : text(record[field]);
-  const cell = el("td", "", value);
+  const cell = el("td");
   cell.dataset.field = field;
   cell.dataset.row = String(rowIndex);
   cell.dataset.col = String(colIndex);
@@ -495,21 +504,23 @@ function appendDataCell(row, sheet, record, rowIndex, colIndex, serialMap) {
   cell.tabIndex = 0;
   if (rowIndex === 0) cell.classList.add("first-data-cell");
   if (isAlert && value) cell.classList.add("alert-cell");
+  // Badge for status fields
+  const isBadge = !isAlert && (field === "État" || field === "Statut");
+  if (isBadge && value) {
+    const badge = el("span", "status-badge");
+    badge.textContent = value;
+    badge.dataset.status = norm(value);
+    cell.append(badge);
+  } else {
+    cell.textContent = value;
+  }
+  // Tabular / monospace rendering for identifier fields
+  if (field.startsWith("N°")) cell.classList.add("cell-id");
   const isHistorySerial = sheet.kind === "history" && field === "N° Série";
   if (isHistorySerial) {
-    let roadmapClickTimer;
     cell.classList.add("roadmap-trigger");
     cell.title = "Voir le parcours";
-    cell.addEventListener("click", () => {
-      window.clearTimeout(roadmapClickTimer);
-      roadmapClickTimer = window.setTimeout(() => openRoadmap(record), 250);
-    });
-    cell.addEventListener("dblclick", () => {
-      window.clearTimeout(roadmapClickTimer);
-      beginEdit(cell);
-    });
-  } else if (!isAlert) {
-    cell.addEventListener("click", () => beginEdit(cell));
+    cell.addEventListener("click", () => openRoadmap(record));
   }
   cell.addEventListener("keydown", event => handleCellKeydown(event, cell));
   row.append(cell);
@@ -610,7 +621,7 @@ function openRoadmap(record) {
   steps.forEach((step, index) => {
     const isCurrent = index === steps.length - 1;
     const item = el("li", `roadmap-step${isCurrent ? " current" : ""}`);
-    const name = el("strong", "roadmap-step-name", isCurrent ? `Now: ${step.name}` : step.name);
+    const name = el("strong", "roadmap-step-name", isCurrent ? `(actuel) ${step.name}` : step.name);
     const date = el("span", "roadmap-step-date", step.date ? dateText(step.date) : "Date inconnue");
     const remark = el("span", "roadmap-step-remark", step.remark || "Aucune remarque");
     item.append(name, date, remark);
@@ -636,7 +647,7 @@ function render() {
 
   const table = el("table", "grid");
   const colgroup = el("colgroup");
-  const widths = [42, ...sheet.columns.map(([, width]) => width), 40];
+  const widths = [42, ...sheet.columns.map(([, width]) => width), 76];
   widths.forEach(width => {
     const col = el("col");
     col.style.width = `${width}px`;
@@ -673,29 +684,69 @@ function render() {
   table.append(thead);
 
   const tbody = el("tbody");
-  records.forEach((record, rowIndex) => {
-    const row = el("tr");
-    row.append(el("td", "row-number", String(rowIndex + 1)));
-    sheet.columns.forEach((_, colIndex) => appendDataCell(row, sheet, record, rowIndex, colIndex, serialMap));
-    const actions = el("td", "delete-cell");
-    const remove = el("button", "delete-button", "×");
-    remove.type = "button";
-    remove.title = "Supprimer la ligne";
-    remove.setAttribute("aria-label", `Supprimer la ligne ${rowIndex + 1}`);
-    remove.addEventListener("click", () => deleteRecord(sheet, record));
-    actions.append(remove);
-    row.append(actions);
-    tbody.append(row);
-  });
-  const blank = el("tr", "blank-row");
-  blank.append(el("td", "row-number"));
-  sheet.columns.forEach((_, index) => {
-    const cell = index === 0 ? el("td", "first-data-cell", "+ Ajouter une ligne…") : el("td");
-    if (index === 0) cell.addEventListener("click", openForm);
-    blank.append(cell);
-  });
-  blank.append(el("td"));
-  tbody.append(blank);
+  if (!state.loadedCollections.has(sheet.collection)) {
+    const stateRow = el("tr", "state-row");
+    const stateCell = el("td", "state-cell");
+    stateCell.colSpan = colSpan;
+    stateCell.append(el("div", "state-spinner"), el("p", "state-label", "Chargement…"));
+    stateRow.append(stateCell);
+    tbody.append(stateRow);
+  } else {
+    records.forEach((record, rowIndex) => {
+      const row = el("tr");
+      row.append(el("td", "row-number", String(rowIndex + 1)));
+      sheet.columns.forEach((_, colIndex) => appendDataCell(row, sheet, record, rowIndex, colIndex, serialMap));
+      const actions = el("td", "delete-cell");
+      const editBtn = el("button", "edit-button");
+      editBtn.type = "button";
+      editBtn.title = "Modifier la ligne";
+      editBtn.setAttribute("aria-label", `Modifier la ligne ${rowIndex + 1}`);
+      editBtn.innerHTML = '<span class="material-symbols-outlined">edit</span>';
+      editBtn.addEventListener("click", () => openForm(record, sheet));
+      const deleteBtn = el("button", "delete-button", "×");
+      deleteBtn.type = "button";
+      deleteBtn.title = "Supprimer la ligne";
+      deleteBtn.setAttribute("aria-label", `Supprimer la ligne ${rowIndex + 1}`);
+      deleteBtn.addEventListener("click", () => deleteRecord(sheet, record));
+      actions.append(editBtn, deleteBtn);
+      row.append(actions);
+      tbody.append(row);
+    });
+    if (records.length === 0) {
+      const stateRow = el("tr", "state-row");
+      const stateCell = el("td", "state-cell");
+      stateCell.colSpan = colSpan;
+      const icon = el("span", "state-symbol");
+      const label = el("p", "state-label");
+      const hint = el("p", "state-hint");
+      const hasAnyRecords = state.records[sheet.collection].length > 0;
+      if (hasAnyRecords) {
+        icon.textContent = "search_off";
+        label.textContent = "Aucun résultat";
+        hint.textContent = "Essayez une autre recherche ou retirez les filtres.";
+      } else if (sheet.kind === "history") {
+        icon.textContent = "history";
+        label.textContent = "Aucune entrée d'historique";
+        hint.textContent = "L'historique se remplit automatiquement lors des réaffectations d'équipements.";
+      } else {
+        icon.textContent = "folder_open";
+        label.textContent = `Aucun équipement dans « ${sheet.name} »`;
+        hint.textContent = "Utilisez le bouton « + Ajouter » pour créer une première entrée.";
+      }
+      stateCell.append(icon, label, hint);
+      stateRow.append(stateCell);
+      tbody.append(stateRow);
+    }
+    const blank = el("tr", "blank-row");
+    blank.append(el("td", "row-number"));
+    sheet.columns.forEach((_, index) => {
+      const cell = index === 0 ? el("td", "first-data-cell", "+ Ajouter une ligne…") : el("td");
+      if (index === 0) cell.addEventListener("click", openForm);
+      blank.append(cell);
+    });
+    blank.append(el("td"));
+    tbody.append(blank);
+  }
   table.append(tbody);
 
   const lists = el("div");
@@ -802,10 +853,7 @@ function handleCellKeydown(event, cell) {
     if (record) openRoadmap(record);
     return;
   }
-  if (event.key === "F2" || event.key === "Enter") {
-    event.preventDefault();
-    beginEdit(cell);
-  } else if (event.key === "Tab") {
+  if (event.key === "Tab") {
     if (moveFocus(cell, 0, event.shiftKey ? -1 : 1, true)) event.preventDefault();
   } else if (event.key.startsWith("Arrow")) {
     const delta = { ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[event.key];
@@ -913,16 +961,55 @@ async function deleteRecord(sheet, record) {
 
 /* ---------- Add form ---------- */
 
-function openForm() {
-  const sheet = activeSheet();
+function openForm(existingRecord = null, existingSheet = null) {
+  const sheet = existingSheet ?? activeSheet();
+  state.editingRecord = existingRecord;
+  state.editingSheet = existingSheet;
   formFields.replaceChildren();
   if (formError) formError.textContent = "";
-  document.querySelector("#dialog-title").textContent = `Ajouter — ${sheet.name}`;
+
+  const isEdit = existingRecord !== null;
+  document.querySelector("#dialog-title").textContent = isEdit
+    ? `Modifier — ${sheet.name}`
+    : `Ajouter — ${sheet.name}`;
+  const submitBtn = recordForm.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = isEdit ? "Enregistrer" : "Enregistrer";
+
+  // Pre-fill active filter values as sensible defaults (add mode only)
+  const defaults = {};
+  if (!isEdit) {
+    if (stateFilter.value) defaults["État"] = stateFilter.value;
+    if (serviceFilter.value) defaults["Service"] = serviceFilter.value;
+  }
+
+  // Fields where at least one must be filled (for non-history sheets)
+  const requiredFields = sheet.kind !== "history"
+    ? new Set([pcField(sheet), serialField(sheet)])
+    : new Set();
+
   sheet.columns.filter(([name]) => name !== ALERT_FIELD).forEach(([field]) => {
-    const label = el("label", "", field);
+    const label = el("label");
+    label.append(document.createTextNode(field));
+    if (requiredFields.has(field)) {
+      const mark = el("span", "required-mark", " *");
+      mark.setAttribute("aria-hidden", "true");
+      label.append(mark);
+    }
     const input = el("input");
     input.name = field;
     input.autocomplete = "off";
+    if (isEdit) {
+      // Pre-fill from existing record in edit mode
+      const raw = existingRecord[field];
+      if (raw !== undefined && raw !== null) input.value = text(raw);
+    } else if (defaults[field] !== undefined) {
+      input.value = defaults[field];
+    }
+    // Clear invalid state as soon as the user types
+    input.addEventListener("input", () => {
+      input.classList.remove("invalid");
+      if (!formFields.querySelector("input.invalid") && formError) formError.textContent = "";
+    });
     label.append(input);
     if (SUGGEST_FIELDS.includes(field)) {
       const id = `form-${fieldId(field)}`;
@@ -937,18 +1024,54 @@ function openForm() {
 
 recordForm.addEventListener("submit", async event => {
   event.preventDefault();
+  const isEdit = state.editingRecord !== null;
+  const sheet = state.editingSheet ?? activeSheet();
   const record = Object.fromEntries(new FormData(recordForm).entries());
+
+  // Clear previous validation state
+  formFields.querySelectorAll("input.invalid").forEach(i => i.classList.remove("invalid"));
+  if (formError) formError.textContent = "";
+
+  // Client-side validation: at least one identifier must be filled
+  if (sheet.kind !== "history") {
+    const pcF = pcField(sheet);
+    const serF = serialField(sheet);
+    if (!record[pcF]?.trim() && !record[serF]?.trim()) {
+      [pcF, serF].forEach(fieldName => {
+        const input = [...formFields.querySelectorAll("input")].find(i => i.name === fieldName);
+        if (input) input.classList.add("invalid");
+      });
+      if (formError) formError.textContent = `Renseignez au moins « ${pcF} » ou le numéro de série pour identifier cet équipement.`;
+      formFields.querySelector("input.invalid")?.focus();
+      return;
+    }
+  }
+
+  const submitBtn = recordForm.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
   try {
-    await addRecord(activeSheet(), record);
-    recordDialog.close();
-    notify("Ligne ajoutée.");
+    if (isEdit) {
+      await saveRecord(sheet, state.editingRecord, record);
+      recordDialog.close();
+      notify(`Ligne modifiée dans « ${sheet.name} ».`);
+    } else {
+      await addRecord(sheet, record);
+      recordDialog.close();
+      notify(`Ligne ajoutée dans « ${sheet.name} ».`);
+    }
   } catch (error) {
     const message = friendlyError(error);
     if (formError) formError.textContent = message;
     else notify(message, true);
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 });
-recordDialog.addEventListener("close", () => recordForm.reset());
+recordDialog.addEventListener("close", () => {
+  recordForm.reset();
+  state.editingRecord = null;
+  state.editingSheet = null;
+});
 document.querySelector("#add-button").addEventListener("click", openForm);
 document.querySelector("#close-dialog").addEventListener("click", () => recordDialog.close());
 document.querySelector("#cancel-dialog").addEventListener("click", () => recordDialog.close());
